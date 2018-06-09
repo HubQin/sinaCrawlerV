@@ -124,7 +124,7 @@ def getComment(id, page):
 
 if __name__ == '__main__':
 	conn = db_connector()
-	latestTimestamp = selectData(conn,'wb_mzm_post1',3)
+	latestTimestamp = selectData(conn,'wb_mzm_post',3)
 	if latestTimestamp == None:
 		latestTimestamp = 0
 	print(latestTimestamp)
