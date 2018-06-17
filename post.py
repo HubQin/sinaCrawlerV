@@ -16,7 +16,7 @@ from gadget import *
 def getContent(page,latestTimestamp,conn):
 	'''get post content and save in database'''
 
-
+	# convert timestamp to date format
 	timeLocal = getDate(latestTimestamp)
 	print("=====开始抓取时间[%s]之后的微博=====" % timeLocal)
 	print("=====开始抓取第%s页之后的微博=====" % page)
@@ -27,6 +27,7 @@ def getContent(page,latestTimestamp,conn):
 	data.encoding = 'utf-8'
 	data = json.loads(data.text)
 	
+	# use to record fail time
 	breakCount = 0
 	# Process all post items
 	for content in data['data']['cards']:
@@ -34,7 +35,7 @@ def getContent(page,latestTimestamp,conn):
 			addTime = getTimestamp(content['mblog']['created_at'])
 			print('添加时间%s' % addTime)
 
-			#only save which havn't been crawled
+			# only save which havn't been crawled
 			if addTime > latestTimestamp:
 				print('POST ID: %s 开始抓取\n' % content['mblog']['id'])
 				kwPost = {}
@@ -43,21 +44,23 @@ def getContent(page,latestTimestamp,conn):
 				kwPost['attitudes_count'] = content['mblog']['attitudes_count'] 
 				kwPost['comments_count'] = content['mblog']['comments_count']
 
-				# if there is no long text, use the current text
+				# if there is not long text, use the current text,otherwise get the long text
 				if content['mblog']['isLongText'] == False:
 					kwPost['content'] = content['mblog']['text']
 				else:
 					kwPost['content'] = getLongTextContent(content['mblog']['id'])
-				# if fail to get long text, just use the short one 
+				# if fail to get long text, just use the short one instead
 				if kwPost['content'] == False:
 						kwPost['content'] = content['mblog']['text']
 				# if has retweeted content, get it in the same way
 				if 'retweeted_status' in content['mblog']:
 					kwPost['retweet_id'] = content['mblog']['retweeted_status']['id']
+					# if there is not long text, use the current text,otherwise get the long text
 					if content['mblog']['retweeted_status']['isLongText'] == False:
 						kwPost['retweet_content'] = content['mblog']['retweeted_status']['text']
 					else:
 						kwPost['retweet_content'] = getLongTextContent(content['mblog']['retweeted_status']['id'])
+					# if fail to get long text, use the short one instead
 					if kwPost['retweet_content'] == False:
 						kwPost['retweet_content'] = content['mblog']['retweeted_status']['text']
 
@@ -84,6 +87,7 @@ def getContent(page,latestTimestamp,conn):
 			else:
 				print('时间小于最新时间，不写入')
 				breakCount = breakCount + 1
+				# if reach the limit fail times,stop
 				if breakCount == 5:
 					print('已经抓取完毕，程序结束...')
 					exit()
@@ -107,13 +111,17 @@ def getComment(id, page):
 	data = requests.get(url, headers = headers) 
 	data.encoding = 'utf-8'
 	data = json.loads(data.text)
+	# while return data normally
 	while data['ok'] == 1 and 'data' in data.keys() and page < data['data']['max']:
 		for content in data['data']['data']:
 			addTime = getTimestamp(content['created_at'])
+			# the comment has both replay text and text
 			if 'reply_text' in content.keys() and 'text' in content.keys():
 				yield [content['id'], content['like_counts'], addTime, content['user']['id'], content['user']['screen_name'], content['user']['profile_image_url'], content['user']['profile_url'], content['text'], content['reply_text']]
+			# the comment only has reply text
 			elif 'reply_text' in content.keys() and 'text' not in content.keys():
 				yield [content['id'], content['like_counts'], addTime, content['user']['id'], content['user']['screen_name'], content['user']['profile_image_url'], content['user']['profile_url'], '', content['reply_text']]
+			# the comment only has text
 			elif 'reply_text' not in content.keys() and 'text' in content.keys():
 				yield [content['id'], content['like_counts'], addTime, content['user']['id'], content['user']['screen_name'], content['user']['profile_image_url'], content['user']['profile_url'], content['text'], '']
 		print('抓取评论第%s页\n' % page)
@@ -127,11 +135,11 @@ if __name__ == '__main__':
 	latestTimestamp = selectData(conn,'wb_mzm_post',3)
 	if latestTimestamp == None:
 		latestTimestamp = 0
-	print(latestTimestamp)
-	ppage = 1
-
-	# the program would extis while all latest posts are crawled
-	while ppage < 100:
-		getContent(ppage,latestTimestamp,conn)
-		ppage = ppage + 1
+	print('上次更新到：%s' % getDate(latestTimestamp))
+	postPage = 1
+	
+	# the program would exit while all latest posts are crawled,the break point locate in getContent()
+	while True:
+		getContent(postPage,latestTimestamp,conn)
+		postPage = postPage + 1
 		sleepTimes(1)
