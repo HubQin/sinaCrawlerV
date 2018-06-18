@@ -20,7 +20,6 @@ def getContent(page,latestTimestamp,conn):
 	timeLocal = getDate(latestTimestamp)
 	print("=====开始抓取时间[%s]之后的微博=====" % timeLocal)
 	print("=====开始抓取第%s页之后的微博=====" % page)
-
 	url = listUrlFormat.format(page)
 
 	data = requests.get(url, headers = headers)
@@ -69,7 +68,7 @@ def getContent(page,latestTimestamp,conn):
 				print('POST ID: %s 写入成功\n' % kwPost['post_id'])
 
 				# Start getting comments of post
-				for data in getComment(kwPost['post_id'], 0):
+				for data in getComment(kwPost['post_id'],0):
 					if data:
 						kwComment = {}
 						kwComment['post_id'] = kwPost['post_id']
@@ -89,6 +88,8 @@ def getContent(page,latestTimestamp,conn):
 				breakCount = breakCount + 1
 				# if reach the limit fail times,stop
 				if breakCount == 5:
+					# close database connection
+					closeConn(conn)
 					print('已经抓取完毕，程序结束...')
 					exit()
 
@@ -104,9 +105,8 @@ def getLongTextContent(id):
 	else:
 		return False
 
-def getComment(id, page):
+def getComment(id,page):
 	'''get all comments of a post page by page recursively and return a generator'''
-
 	url = commentUrlFormat.format(id = id, page = page)
 	data = requests.get(url, headers = headers) 
 	data.encoding = 'utf-8'
@@ -126,9 +126,10 @@ def getComment(id, page):
 				yield [content['id'], content['like_counts'], addTime, content['user']['id'], content['user']['screen_name'], content['user']['profile_image_url'], content['user']['profile_url'], content['text'], '']
 		print('抓取评论第%s页\n' % page)
 		page = page + 1
-		getComment(id,page)
-	else:
-		yield []
+		url = commentUrlFormat.format(id = id, page = page)
+		data = requests.get(url, headers = headers) 
+		data.encoding = 'utf-8'
+		data = json.loads(data.text)
 
 if __name__ == '__main__':
 	conn = db_connector()
@@ -137,9 +138,8 @@ if __name__ == '__main__':
 		latestTimestamp = 0
 	print('上次更新到：%s' % getDate(latestTimestamp))
 	postPage = 1
-	
 	# the program would exit while all latest posts are crawled,the break point locate in getContent()
 	while True:
 		getContent(postPage,latestTimestamp,conn)
 		postPage = postPage + 1
-		sleepTimes(1)
+		sleepTimes(3)
