@@ -89,6 +89,7 @@ def getArticleContent(id):
 def saveFailId(id):
 	with open('weibofailid.txt','a') as f:
 		f.write(str(id)+'\n')
+		f.close()
 
 if __name__ == '__main__':
 	conn = db_connector()

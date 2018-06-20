@@ -34,7 +34,9 @@ def getContent(page,latestTimestamp,conn):
 			addTime = getTimestamp(content['mblog']['created_at'])
 			print('添加时间%s' % addTime)
 
-			# only save which havn't been crawled
+			# Crawl time between A and B,use:
+			# if addTime > 1528905600 and addTime < 1529421596:
+			# Crawl time after latest timestamp
 			if addTime > latestTimestamp:
 				print('POST ID: %s 开始抓取\n' % content['mblog']['id'])
 				kwPost = {}
@@ -84,7 +86,7 @@ def getContent(page,latestTimestamp,conn):
 						insert_data('wb_mzm_comment', conn, **kwComment)
 				print('POST ID:%s 的评论写入完毕\n' % kwPost['post_id'])
 			else:
-				print('时间小于最新时间，不写入')
+				print('已抓取，不写入')
 				breakCount = breakCount + 1
 				# if reach the limit fail times,stop
 				if breakCount == 5:
@@ -124,7 +126,7 @@ def getComment(id,page):
 			# the comment only has text
 			elif 'reply_text' not in content.keys() and 'text' in content.keys():
 				yield [content['id'], content['like_counts'], addTime, content['user']['id'], content['user']['screen_name'], content['user']['profile_image_url'], content['user']['profile_url'], content['text'], '']
-		print('抓取评论第%s页\n' % page)
+		# print('抓取评论第%s页\n' % page)
 		page = page + 1
 		url = commentUrlFormat.format(id = id, page = page)
 		data = requests.get(url, headers = headers) 
@@ -136,6 +138,7 @@ if __name__ == '__main__':
 	latestTimestamp = selectData(conn,'wb_mzm_post',3)
 	if latestTimestamp == None:
 		latestTimestamp = 0
+	saveLastTimestamp(latestTimestamp,'last_post_timestamp.txt')
 	print('上次更新到：%s' % getDate(latestTimestamp))
 	postPage = 1
 	# the program would exit while all latest posts are crawled,the break point locate in getContent()

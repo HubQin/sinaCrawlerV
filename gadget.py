@@ -9,6 +9,7 @@ Some small tools
 
 import time
 import datetime
+import os
 
 def getTimestamp(text):
 	'''Get timestamp from giving text'''
@@ -48,3 +49,10 @@ def getDate(timestamp):
 
 def sleepTimes(num):
 	time.sleep(num)
+
+def saveLastTimestamp(timestamp,filename):
+	if not os.path.exists('log'):
+		os.mkdir('log')
+	with open('log/'+filename,'a',encoding='utf-8') as f:
+		f.write('保存时间：'+str(datetime.datetime.now())+'\t开始时间戳：'+str(timestamp)+'\n')
+		f.close()
