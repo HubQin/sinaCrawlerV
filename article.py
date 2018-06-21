@@ -14,10 +14,14 @@ from config import *
 from database import *
 from gadget import *
 
-def getArticle(page, conn):
+def getArticle(page, latestTimestamp, conn):
 	'''Get Article Content: Get article id and then get content with it'''
 
+	# convert timestamp to date format
+	timeLocal = getDate(latestTimestamp)
+	print("=====开始抓取时间[%s]之后的微博文章=====" % timeLocal)
 	print('开始抓取文章列表第%s页\n' % page)
+
 	url = articleListUrlFormat.format(page)
 	data = requests.get(url, headers = headers)
 	data.encoding = 'utf-8'
@@ -34,14 +38,15 @@ def getArticle(page, conn):
 			kwArticle['article_id'] = object_id.split(":")[1]
 			kwArticle['content'] = getArticleContent(kwArticle['article_id'])
 			if kwArticle['content'] == '':
-				saveFailId(kwArticle['article_id'])
+				saveFailId(kwArticle['article_id'],kwArticle['title'])
 				continue
 		# sometimes the return 'card_type' not equal to 9,get content in different way
-		else:
+		elif content['card_type'] == 8:
 			regex = re.compile('id=.*?&')
 			result = regex.findall(content['scheme'])
 			kwArticle = {}
 			kwArticle['article_id'] = result[0].rstrip("&").split("=")[1]
+			kwArticle['title'] = content['title_sub']
 
 			urlFormat = r'http://card.weibo.com/article/aj/articleshow?cid={}'
 			urlArticle = urlFormat.format(kwArticle['article_id'])
@@ -49,7 +54,7 @@ def getArticle(page, conn):
 			response = requests.get(urlArticle, headers = articleHeaders)
 			subContent = json.loads(response.text)
 			if type(subContent) == str or '原文章已被删除' in json.dumps(subContent).encode('utf-8').decode('unicode_escape') or '正在加载内容' in json.dumps(subContent).encode('utf-8').decode('unicode_escape'):
-				saveFailId(kwArticle['article_id'])
+				saveFailId(kwArticle['article_id'],kwArticle['title'])
 				continue
 			kwArticle['add_time'] = 0
 			kwArticle['title'] = subContent['data']['title'] 
@@ -78,7 +83,7 @@ def getArticleContent(id):
 		url = urlFormat.format(id)
 		response = requests.get(url, headers = articleHeaders)
 		response.encoding = 'utf-8'
-		content = subContent['data']
+		content = response.text
 		if content:
 			content = json.dumps(content).encode('utf-8').decode('unicode_escape')
 			content = content.split('<div class="WBA_content clearfix">')[1].split('<div class="link">')[0]
@@ -86,21 +91,19 @@ def getArticleContent(id):
 		else:
 			return ''
 
-def saveFailId(id):
-	with open('weibofailid.txt','a') as f:
-		f.write(str(id)+'\n')
-		f.close()
-
 if __name__ == '__main__':
 	conn = db_connector()
 	latestTimestamp = selectData(conn,'wb_mzm_article',4)
+	
 	if latestTimestamp == None:
 		latestTimestamp = 0
-	print(latestTimestamp)
-	ppage = 1
 
-	# the program would extis while all latest posts are crawled
-	while ppage < 100:
-		getContent(ppage,latestTimestamp,conn)
-		ppage = ppage + 1
-		sleepTimes(1)
+	saveLastTimestamp(latestTimestamp,'last_article_timestamp.txt')
+	print('上次更新到：%s' % getDate(latestTimestamp))
+	articlePage = 1
+
+	while True:
+		getArticle(articlePage,latestTimestamp,conn)
+		articlePage = articlePage + 1
+		sleepTimes(3)
+
