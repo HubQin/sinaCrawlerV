@@ -36,7 +36,7 @@ def getArticle(page, latestTimestamp, conn):
 
 			object_id = content['mblog']['page_info']['object_id']
 			kwArticle['article_id'] = object_id.split(":")[1]
-			kwArticle['content'] = getArticleContent(kwArticle['article_id'])
+			kwArticle['content'] = getArticleContent(kwArticle['article_id'],1)
 			if kwArticle['content'] == '':
 				saveFailId(kwArticle['article_id'],kwArticle['title'])
 				continue
@@ -50,20 +50,19 @@ def getArticle(page, latestTimestamp, conn):
 
 			urlFormat = r'http://card.weibo.com/article/aj/articleshow?cid={}'
 			urlArticle = urlFormat.format(kwArticle['article_id'])
+			articleContent,articleTime = getArticleContent(kwArticle['article_id'], 2)
 
-			response = requests.get(urlArticle, headers = articleHeaders)
-			subContent = json.loads(response.text)
-			if type(subContent) == str or '原文章已被删除' in json.dumps(subContent).encode('utf-8').decode('unicode_escape') or '正在加载内容' in json.dumps(subContent).encode('utf-8').decode('unicode_escape'):
+			if articleContent == '':
 				saveFailId(kwArticle['article_id'],kwArticle['title'])
 				continue
-			kwArticle['add_time'] = 0
-			kwArticle['title'] = subContent['data']['title'] 
-			kwArticle['content'] = subContent['data']['article']
+			
+			kwArticle['add_time'] = getTimestamp(articleTime)
+			kwArticle['content'] = articleContent
 		print('保存文章：%s\n' % kwArticle['title'])
 		insert_data('wb_mzm_article', conn, **kwArticle)
 		print("保存成功！")
 
-def getArticleContent(id):
+def getArticleContent(id,card_type):
 	'''Get content by id'''
 
 	object_id = '1022:' + id
@@ -71,25 +70,39 @@ def getArticleContent(id):
 	response = requests.get(url, headers = articleHeaders)
 	response.encoding = 'utf-8';
 	soup = BeautifulSoup(response.text,'lxml')
+
 	# if article content contains in script tag, parse content in it
-	if len(soup.findAll("script")) > 1:
+	if len(soup.findAll("script")) > 1 and card_type == 1:
 		jsText = soup.findAll("script")[1].text
+
+		# Extract value of content,add brackets in regex to make it only return the brackets part
 		regex = re.compile('\"content\":(.*)')
 		result = regex.findall(jsText)
-		return result[0]
+
+		# Get rid of html tag
+		resultSoup = BeautifulSoup(result[0], 'lxml')
+		return resultSoup.body.get_text()
+
 	# if article content return from api 
 	else:
 		urlFormat = r'http://card.weibo.com/article/aj/articleshow?cid={}'
 		url = urlFormat.format(id)
 		response = requests.get(url, headers = articleHeaders)
-		response.encoding = 'utf-8'
-		content = response.text
-		if content:
-			content = json.dumps(content).encode('utf-8').decode('unicode_escape')
-			content = content.split('<div class="WBA_content clearfix">')[1].split('<div class="link">')[0]
-			return content
+		if response:
+			response.encoding = 'utf-8'
+			content = json.loads(response.text)
+			parseContent = json.dumps(content).encode('utf-8').decode('unicode_escape')
+			
+			if type(content) == str or '原文章已被删除' in parseContent or '正在加载内容' in parseContent:
+				return ''
+
+			articleHTML = content['data']['article']
+			articleSoup = BeautifulSoup(articleHTML,'lxml')
+			articleContent = articleSoup.find('div', class_='WBA_content').text
+			articleTime = articleSoup.find('span', class_='time').text
+			return articleContent,articleTime
 		else:
-			return ''
+			return '',''
 
 if __name__ == '__main__':
 	conn = db_connector()
@@ -100,7 +113,7 @@ if __name__ == '__main__':
 
 	saveLastTimestamp(latestTimestamp,'last_article_timestamp.txt')
 	print('上次更新到：%s' % getDate(latestTimestamp))
-	articlePage = 1
+	articlePage = 10
 
 	while True:
 		getArticle(articlePage,latestTimestamp,conn)

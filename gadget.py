@@ -36,7 +36,10 @@ def getTimestamp(text):
 	else:
 		if text.count('-') == 1:
 			text = '2018-' + text
-		timeStruct = time.strptime(text,'%Y-%m-%d')
+		if ':' in text and ' ' in text:
+			timeStruct = time.strptime(text,'%Y-%m-%d %H:%M')
+		else:
+			timeStruct = time.strptime(text,'%Y-%m-%d')
 		timestamp = int(time.mktime(timeStruct))
 		return timestamp
 
