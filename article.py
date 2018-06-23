@@ -20,7 +20,7 @@ def getArticle(page, latestTimestamp, conn):
 	# convert timestamp to date format
 	timeLocal = getDate(latestTimestamp)
 	print("=====开始抓取时间[%s]之后的微博文章=====" % timeLocal)
-	print('开始抓取文章列表第%s页\n' % page)
+	print('开始抓取文章列表第%s页' % page)
 
 	url = articleListUrlFormat.format(page)
 	data = requests.get(url, headers = headers)
@@ -36,10 +36,11 @@ def getArticle(page, latestTimestamp, conn):
 
 			object_id = content['mblog']['page_info']['object_id']
 			kwArticle['article_id'] = object_id.split(":")[1]
-			kwArticle['content'] = getArticleContent(kwArticle['article_id'],1)
-			if kwArticle['content'] == '':
+			articleTuple = getArticleContent(kwArticle['article_id'],1)
+			if articleTuple[0] == '':
 				saveFailId(kwArticle['article_id'],kwArticle['title'])
 				continue
+			kwArticle['content'] = articleTuple[0]
 		# sometimes the return 'card_type' not equal to 9,get content in different way
 		elif content['card_type'] == 8:
 			regex = re.compile('id=.*?&')
@@ -50,17 +51,16 @@ def getArticle(page, latestTimestamp, conn):
 
 			urlFormat = r'http://card.weibo.com/article/aj/articleshow?cid={}'
 			urlArticle = urlFormat.format(kwArticle['article_id'])
-			articleContent,articleTime = getArticleContent(kwArticle['article_id'], 2)
-
-			if articleContent == '':
+			articleTuple = getArticleContent(kwArticle['article_id'], 2)
+			if articleTuple[0] == '':
 				saveFailId(kwArticle['article_id'],kwArticle['title'])
 				continue
 			
-			kwArticle['add_time'] = getTimestamp(articleTime)
-			kwArticle['content'] = articleContent
-		print('保存文章：%s\n' % kwArticle['title'])
+			kwArticle['add_time'] = getTimestamp(articleTuple[1])
+			kwArticle['content'] = articleTuple[0]
+		print('保存文章：%s' % kwArticle['title'])
 		insert_data('wb_mzm_article', conn, **kwArticle)
-		print("保存成功！")
+		print("保存成功！\n")
 
 def getArticleContent(id,card_type):
 	'''Get content by id'''
@@ -81,7 +81,7 @@ def getArticleContent(id,card_type):
 
 		# Get rid of html tag
 		resultSoup = BeautifulSoup(result[0], 'lxml')
-		return resultSoup.body.get_text()
+		return resultSoup.body.get_text().strip(',').strip('"'), ''
 
 	# if article content return from api 
 	else:
@@ -94,13 +94,13 @@ def getArticleContent(id,card_type):
 			parseContent = json.dumps(content).encode('utf-8').decode('unicode_escape')
 			
 			if type(content) == str or '原文章已被删除' in parseContent or '正在加载内容' in parseContent:
-				return ''
+				return '',''
 
 			articleHTML = content['data']['article']
 			articleSoup = BeautifulSoup(articleHTML,'lxml')
 			articleContent = articleSoup.find('div', class_='WBA_content').text
 			articleTime = articleSoup.find('span', class_='time').text
-			return articleContent,articleTime
+			return articleContent.strip(',').strip('"'), articleTime
 		else:
 			return '',''
 
@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
 	saveLastTimestamp(latestTimestamp,'last_article_timestamp.txt')
 	print('上次更新到：%s' % getDate(latestTimestamp))
-	articlePage = 10
+	articlePage = 24
 
 	while True:
 		getArticle(articlePage,latestTimestamp,conn)
