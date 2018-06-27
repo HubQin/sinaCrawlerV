@@ -23,29 +23,42 @@ def getArticle(page, latestTimestamp, conn):
 	print('开始抓取文章列表第%s页' % page)
 
 	url = articleListUrlFormat.format(page)
-	data = requests.get(url, headers = headers)
+	data = requests.get(url, headers = articleHeaders)
 	data.encoding = 'utf-8'
 	data = json.loads(data.text)
-
-	for content in data['data']['cards'][0]['card_group']:
+	for content in data['data']['cards']:
+		kwArticle = {}
 		# if 'card_type' is 9
 		if content['card_type'] == 9:
-			kwArticle = {}
 			kwArticle['add_time'] = getTimestamp(content['mblog']['created_at'])
 			kwArticle['title'] = content['mblog']['page_info']['page_title']
-
+			
 			object_id = content['mblog']['page_info']['object_id']
 			kwArticle['article_id'] = object_id.split(":")[1]
 			articleTuple = getArticleContent(kwArticle['article_id'],1)
+			
 			if articleTuple[0] == '':
 				saveFailId(kwArticle['article_id'],kwArticle['title'])
 				continue
 			kwArticle['content'] = articleTuple[0]
-		# sometimes the return 'card_type' not equal to 9,get content in different way
+
+		elif content['card_type'] == 11 and content['card_group'][0]['card_type'] == 9:
+			kwArticle['add_time'] = getTimestamp(content['card_group'][0]['mblog']['created_at'])
+			kwArticle['title'] = content['card_group'][0]['mblog']['page_info']['page_title']
+			
+			object_id = content['card_group'][0]['mblog']['page_info']['object_id']
+			kwArticle['article_id'] = object_id.split(":")[1]
+			articleTuple = getArticleContent(kwArticle['article_id'],1)
+			
+			if articleTuple[0] == '':
+				saveFailId(kwArticle['article_id'],kwArticle['title'])
+				continue
+
+			kwArticle['content'] = articleTuple[0]
+
 		elif content['card_type'] == 8:
 			regex = re.compile('id=.*?&')
 			result = regex.findall(content['scheme'])
-			kwArticle = {}
 			kwArticle['article_id'] = result[0].rstrip("&").split("=")[1]
 			kwArticle['title'] = content['title_sub']
 
@@ -58,9 +71,10 @@ def getArticle(page, latestTimestamp, conn):
 			
 			kwArticle['add_time'] = getTimestamp(articleTuple[1])
 			kwArticle['content'] = articleTuple[0]
-		print('保存文章：%s' % kwArticle['title'])
-		insert_data('wb_mzm_article', conn, **kwArticle)
-		print("保存成功！\n")
+		if kwArticle:
+			print('保存文章：%s' % kwArticle['title'])
+			insert_data('wb_mzm_article2', conn, **kwArticle)
+			print("保存成功！\n")
 
 def getArticleContent(id,card_type):
 	'''Get content by id'''
@@ -113,7 +127,7 @@ if __name__ == '__main__':
 
 	saveLastTimestamp(latestTimestamp,'last_article_timestamp.txt')
 	print('上次更新到：%s' % getDate(latestTimestamp))
-	articlePage = 24
+	articlePage = 28
 
 	while True:
 		getArticle(articlePage,latestTimestamp,conn)
