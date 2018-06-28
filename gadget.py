@@ -63,6 +63,6 @@ def saveLastTimestamp(timestamp,filename):
 def saveFailId(id,title):
 	if not os.path.exists('log'):
 		os.mkdir('log')
-	with open('log/weibo_article_fail_id2.txt','a',encoding='utf-8') as f:
+	with open('log/weibo_article_fail_id.txt','a',encoding='utf-8') as f:
 		f.write(title+'\t'+str(id)+'\n')
 		f.close()
