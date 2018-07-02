@@ -79,7 +79,7 @@ def getArticle(page, latestTimestamp, conn):
             # if kwArticle['add_time'] > 0:
             if kwArticle['add_time'] > latestTimestamp:
                 print('保存文章：%s' % kwArticle['title'])
-                insert_data('wb_mzm_article2', conn, **kwArticle)
+                insert_data('wb_mzm_article', conn, **kwArticle)
                 print("保存成功！\n")
             else:
                 print('已抓取，不写入')
@@ -135,14 +135,14 @@ def getArticleContent(id,card_type):
 
 if __name__ == '__main__':
     conn = db_connector()
-    latestTimestamp = selectData(conn,'wb_mzm_article2',4)
+    latestTimestamp = selectData(conn,'wb_mzm_article',4)
     
     if latestTimestamp == None:
         latestTimestamp = 0
 
     saveLastTimestamp(latestTimestamp,'last_article_timestamp.txt')
     print('上次更新到：%s' % getDate(latestTimestamp))
-    articlePage = 55
+    articlePage = 1
 
     while True:
         getArticle(articlePage,latestTimestamp,conn)
